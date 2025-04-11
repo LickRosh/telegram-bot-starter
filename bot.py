@@ -1,54 +1,45 @@
 import os
-import openai
 from dotenv import load_dotenv
 from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder,
-    ContextTypes,
-    MessageHandler,
-    filters,
-)
+from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
+import openai
 
-# Загрузка переменных из .env
+# Загрузка переменных из Railway
 load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 WEBHOOK_DOMAIN = os.getenv("WEBHOOK_DOMAIN")
 
-# Установка ключа OpenAI
 openai.api_key = OPENAI_API_KEY
 
-# Обращение к ChatGPT
+# Функция для работы с GPT
 async def ask_gpt(prompt):
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "Ты чемодан без ручки. Ироничный, но помогаешь не попасться на мошенников."},
+                {"role": "system", "content": "Ты чемодан без ручки. Ироничный, но полезный. Помогаешь людям не попасться на мошенников."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=300
+            max_tokens=400
         )
         return response.choices[0].message.content
     except Exception as e:
-        print(f"⚠️ Ошибка OpenAI: {e}")
+        print(f"❗️ Ошибка OpenAI: {e}")
         return "⚠️ Чемодан застыл. Что-то пошло не так."
 
 # Обработка сообщений
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_input = update.message.text
-    print(f"Пользователь написал: {user_input}")
+    print(f"📨 Пользователь написал: {user_input}")
     reply = await ask_gpt(user_input)
     await update.message.reply_text(f"📦 Чемодан отвечает:\n\n{reply}")
 
-# Запуск приложения
+# Запуск приложения с Webhook
 def main():
+    print("📦 Чемодан запускается через webhook...")
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-
-    # Обработчик текстовых сообщений
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    print("📦 Чемодан запущен по webhook...")
 
     app.run_webhook(
         listen="0.0.0.0",
