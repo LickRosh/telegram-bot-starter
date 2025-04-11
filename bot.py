@@ -41,11 +41,12 @@ def main():
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=int(os.environ.get("PORT", 8080)),
-        webhook_url=f"{WEBHOOK_DOMAIN}/webhook"
-    )
+app.run_webhook(
+    listen="0.0.0.0",
+    port=int(os.environ.get("PORT", 8080)),
+    webhook_url=f"{WEBHOOK_DOMAIN}/webhook",
+    url_path="/webhook"
+)
 
 if __name__ == "__main__":
     main()
