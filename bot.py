@@ -1,82 +1,60 @@
-#!/usr/bin/env python
-# pylint: disable=unused-argument
-# This program is dedicated to the public domain under the CC0 license.
-
-"""
-Simple Bot to reply to Telegram messages.
-
-First, a few handler functions are defined. Then, those functions are passed to
-the Application and registered at their respective places.
-Then, the bot is started and runs until we press Ctrl-C on the command line.
-
-Usage:
-Basic Echobot example, repeats messages.
-Press Ctrl-C on the command line or send a signal to the process to stop the
-bot.
-"""
-
-import logging
 import os
-
+import openai
 from dotenv import load_dotenv
-from telegram import ForceReply, Update
-from telegram.ext import Application, ContextTypes
-
-# Enable logging
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+from telegram import Update
+from telegram.ext import (
+    ApplicationBuilder,
+    ContextTypes,
+    MessageHandler,
+    filters,
 )
-# set higher logging level for httpx to avoid all GET and POST requests being logged
-logging.getLogger("httpx").setLevel(logging.WARNING)
 
-logger = logging.getLogger(__name__)
+# Загрузка переменных из .env
+load_dotenv()
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+WEBHOOK_DOMAIN = os.getenv("WEBHOOK_DOMAIN")
 
+# Установка ключа OpenAI
+openai.api_key = OPENAI_API_KEY
 
-# Define a few command handlers. These usually take the two arguments update and
-# context.
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a message when the command /start is issued."""
-    user = update.effective_user
-    await update.message.reply_html(
-        rf"Hi {user.mention_html()}!",
-        reply_markup=ForceReply(selective=True),
+# Обращение к ChatGPT
+async def ask_gpt(prompt):
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "Ты чемодан без ручки. Ироничный, но помогаешь не попасться на мошенников."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=300
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        print(f"⚠️ Ошибка OpenAI: {e}")
+        return "⚠️ Чемодан застыл. Что-то пошло не так."
+
+# Обработка сообщений
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_input = update.message.text
+    print(f"Пользователь написал: {user_input}")
+    reply = await ask_gpt(user_input)
+    await update.message.reply_text(f"📦 Чемодан отвечает:\n\n{reply}")
+
+# Запуск приложения
+def main():
+    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+
+    # Обработчик текстовых сообщений
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    print("📦 Чемодан запущен по webhook...")
+
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.environ.get("PORT", 8080)),
+        webhook_url=f"{WEBHOOK_DOMAIN}/webhook"
     )
 
-
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a message when the command /help is issued."""
-    await update.message.reply_text("Help!")
-
-
-async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Echo the user message."""
-    await update.message.reply_text(update.message.text)
-
-
 if __name__ == "__main__":
-    load_dotenv()
-    token = os.environ["TELEGRAM_BOT_TOKEN"]
-    dev_mode = os.environ.get("DEV_MODE", "False").lower() == "True"
-
-    application = Application.builder().token(token).build()
-
-    if dev_mode:
-        # Webhook settings
-        webhook_url = os.environ.get("WEBHOOK_URL")
-        port = int(os.environ.get("PORT", 8443))
-
-        # Set webhook
-        application.bot.set_webhook(
-            url=f"{webhook_url}/{token}",
-            drop_pending_updates=True
-        )
-
-        application.run_webhook(
-            listen="0.0.0.0",
-            port=port,
-            url_path=token,
-            webhook_url=f"{webhook_url}/{token}"
-        )
-    else:
-        application.run_polling()
-
+    main()
